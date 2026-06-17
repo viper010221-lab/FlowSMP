@@ -101,7 +101,7 @@ export async function createInitialHelpMenu(client) {
             },
             {
                 name: '\u200B',
-                value: `-# ${botName} is made by Viper)`,
+                value: `-# ${botName} is made by TouchPoint)`,
                 inline: false,
             },
         ],
