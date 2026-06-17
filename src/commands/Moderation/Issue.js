@@ -1,19 +1,29 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, AttachmentBuilder } from 'discord.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { createEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import { handleInteractionError } from '../../utils/errorHandler.js';
+import path from 'path';
 
 export default {
     data: new SlashCommandBuilder()
         .setName('issue')
-        .setDescription('Log a moderation ban issue')
+        .setDescription('Log a moderation action issue')
         .setDMPermission(false)
-        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
-        // Changed from addUserOption to addStringOption so it's just pure text
+        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+        // 1. Dropdown option to choose Ban or Mute
+        .addStringOption(option =>
+            option.setName('type')
+                .setDescription('Select the moderation type')
+                .setRequired(true)
+                .addChoices(
+                    { name: 'Ban', value: 'ban' },
+                    { name: 'Mute/Timeout', value: 'mute' }
+                )
+        )
         .addStringOption(option =>
             option.setName('discord_name')
-                .setDescription('The text name of the banned Discord user (No ping)')
+                .setDescription('The text name of the Discord user (No ping)')
                 .setRequired(true) 
         )
         .addStringOption(option =>
@@ -23,12 +33,12 @@ export default {
         )
         .addStringOption(option =>
             option.setName('duration')
-                .setDescription('The duration of the ban (e.g., 560 Years)')
+                .setDescription('The duration of the action (e.g., 560 Years, 1 Hour)')
                 .setRequired(true)
         )
         .addStringOption(option =>
             option.setName('reason')
-                .setDescription('The reason for the ban')
+                .setDescription('The reason for the punishment')
                 .setRequired(true)
         ),
     category: "Moderation",
@@ -45,7 +55,8 @@ export default {
                 return;
             }
 
-            // 1. Collect all inputs as text strings
+            // Collect all options from the interaction
+            const type = interaction.options.getString('type');
             const discordName = interaction.options.getString('discord_name');
             const mcName = interaction.options.getString('minecraft_name');
             const duration = interaction.options.getString('duration');
@@ -53,31 +64,45 @@ export default {
 
             const moderator = interaction.user;
 
-            // 2. Build the log embed matching image_50bd31.png
+            // Prepare the local banner asset image
+            const imagePath = path.resolve('./assets/landscape-minecraft-shaders-wallpaper-preview_2.jpg'); 
+            const bannerFile = new AttachmentBuilder(imagePath, { name: 'issue-banner.jpg' });
+
+            // Dynamically adjust embed layout properties based on type selected
+            let embedTitle = 'Moderation Log: Ban';
+            let embedColor = '#FF0000'; // Red for bans
+
+            if (type === 'mute') {
+                embedTitle = 'Moderation Log: Mute/Timeout';
+                embedColor = '#FFA500'; // Orange for mutes
+            }
+
+            // 2. Build the unified embed
             const logEmbed = createEmbed()
-                .setColor('#FF0000') 
+                .setColor(embedColor) 
                 .setAuthor({ 
                     name: `Issued by ${moderator.username}`, 
                     iconURL: moderator.displayAvatarURL({ dynamic: true }) 
                 })
-                .setTitle('Moderation Log: Ban')
+                .setTitle(embedTitle)
                 .addFields(
-                    // This will now display exactly what text the moderator typed
                     { name: 'Discord User', value: discordName, inline: false },
                     { name: 'Minecraft Username', value: mcName, inline: true },
                     { name: 'Duration', value: duration, inline: true },
                     { name: 'Reason', value: reason, inline: true }
                 )
+                .setImage('attachment://issue-banner.jpg') // Inserts your shader preview photo at the bottom
                 .setFooter({ 
                     text: `Moderator ID: ${moderator.id}` 
                 })
                 .setTimestamp();
 
-            // 3. Clean up the defer and output the log
+            // 3. Clear the defer state and output the log
             await interaction.deleteReply();
             await interaction.channel.send({ 
-                content: `${moderator}`, // Pings the moderator who ran the command
-                embeds: [logEmbed] 
+                content: `${moderator}`, 
+                embeds: [logEmbed],
+                files: [bannerFile]
             });
 
         } catch (error) {
