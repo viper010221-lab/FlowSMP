@@ -1,9 +1,8 @@
-import { SlashCommandBuilder, PermissionFlagsBits, AttachmentBuilder } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { createEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import { handleInteractionError } from '../../utils/errorHandler.js';
-import path from 'path';
 
 export default {
     data: new SlashCommandBuilder()
@@ -11,7 +10,7 @@ export default {
         .setDescription('Log a moderation action issue')
         .setDMPermission(false)
         .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
-        // 1. Dropdown option to choose Ban or Mute
+        // Dropdown menu configuration
         .addStringOption(option =>
             option.setName('type')
                 .setDescription('Select the moderation type')
@@ -55,7 +54,7 @@ export default {
                 return;
             }
 
-            // Collect all options from the interaction
+            // Collect all inputs
             const type = interaction.options.getString('type');
             const discordName = interaction.options.getString('discord_name');
             const mcName = interaction.options.getString('minecraft_name');
@@ -64,20 +63,17 @@ export default {
 
             const moderator = interaction.user;
 
-            // Prepare the local banner asset image
-            const imagePath = path.resolve('./assets/landscape-minecraft-shaders-wallpaper-preview_2.jpg'); 
-            const bannerFile = new AttachmentBuilder(imagePath, { name: 'issue-banner.jpg' });
-
-            // Dynamically adjust embed layout properties based on type selected
+            // Base settings for the embed layout configuration
             let embedTitle = 'Moderation Log: Ban';
-            let embedColor = '#FF0000'; // Red for bans
+            let embedColor = '#FF0000'; // Red color sidebar for bans
 
+            // Switch layout values if the moderator chooses Mute
             if (type === 'mute') {
                 embedTitle = 'Moderation Log: Mute/Timeout';
-                embedColor = '#FFA500'; // Orange for mutes
+                embedColor = '#FFA500'; // Orange color sidebar for mutes
             }
 
-            // 2. Build the unified embed
+            // Build the clean embed logging layout
             const logEmbed = createEmbed()
                 .setColor(embedColor) 
                 .setAuthor({ 
@@ -91,18 +87,16 @@ export default {
                     { name: 'Duration', value: duration, inline: true },
                     { name: 'Reason', value: reason, inline: true }
                 )
-                .setImage('attachment://issue-banner.jpg') // Inserts your shader preview photo at the bottom
                 .setFooter({ 
                     text: `Moderator ID: ${moderator.id}` 
                 })
                 .setTimestamp();
 
-            // 3. Clear the defer state and output the log
+            // Clear the "thinking..." response and send the embed log cleanly
             await interaction.deleteReply();
             await interaction.channel.send({ 
                 content: `${moderator}`, 
-                embeds: [logEmbed],
-                files: [bannerFile]
+                embeds: [logEmbed]
             });
 
         } catch (error) {
