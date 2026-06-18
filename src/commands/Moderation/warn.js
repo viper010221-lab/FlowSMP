@@ -35,8 +35,6 @@ export default {
             const warn1 = allRoles.find(r => r.name === '1 warnings');
             const warn2 = allRoles.find(r => r.name === '2 warnings');
             const warn3 = allRoles.find(r => r.name === '3 warnings');
-
-            // Find your actual Staff role to mention it properly
             const staffRole = allRoles.find(r => r.name === 'Staff');
 
             if (!warn1 || !warn2 || !warn3) {
@@ -74,9 +72,7 @@ export default {
                     // Securely look up the staff channel using your exact channel ID
                     const staffChatChannel = client.channels.cache.get('1513984222346612806');
                     if (staffChatChannel) {
-                        // If the Staff role exists, mention it using its object so it pings, otherwise fallback to text
                         const staffMention = staffRole ? `${staffRole}` : '@Staff';
-                        
                         await staffChatChannel.send({
                             content: `⚠️ **Attention** ${staffMention}, ${discordUser} has 3 warnings now take action!`
                         }).catch(() => null);
@@ -93,7 +89,14 @@ export default {
                     `**Total Warns:** ${nextWarnLevel}`
                 );
 
+            // Send the card response back to the moderator immediately
             await interaction.editReply({ embeds: [logEmbed] });
+
+            // Send an exact mirror copy straight into your logging channel ID
+            const logFeedChannel = client.channels.cache.get('1513984222346612805');
+            if (logFeedChannel) {
+                await logFeedChannel.send({ embeds: [logEmbed] }).catch(() => null);
+            }
 
         } catch (error) {
             await handleInteractionError(error, interaction);
