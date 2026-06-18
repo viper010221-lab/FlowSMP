@@ -59,11 +59,11 @@ export default {
                     if (warn2) await member.roles.remove(warn2).catch(() => null);
                     await member.roles.add(warn3).catch(() => null);
 
-                    // Find the #staff-chat channel and send the staff ping notification
-                    const staffChatChannel = guild.channels.cache.find(c => c.name === 'staff-chat');
+                    // Securely look up the staff channel using your exact channel ID
+                    const staffChatChannel = client.channels.cache.get('1513984222346612806');
                     if (staffChatChannel) {
                         await staffChatChannel.send({
-                            content: `⚠️ **Attention** @Staff, the user ${discordUser} has reached **3 warnings** now!`
+                            content: `⚠️ **Attention** @Staff, ${discordUser} has 3 warnings now take action!`
                         }).catch(() => null);
                     }
                 }
