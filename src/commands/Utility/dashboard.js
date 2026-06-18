@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } from 'discord.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { createEmbed } from '../../utils/embeds.js';
 import { handleInteractionError } from '../../utils/errorHandler.js';
@@ -6,7 +6,7 @@ import { handleInteractionError } from '../../utils/errorHandler.js';
 export default {
     data: new SlashCommandBuilder()
         .setName('dashboard')
-        .setDescription('View system access lists and manage the bot runtime')
+        .setDescription('View system access lists and manage the bot configuration')
         .setDMPermission(false)
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator), // Restricted to Admins only
     category: "Utility",
@@ -46,22 +46,48 @@ export default {
                 permittedRolesList = permittedRolesList.map(role => `> ${role}`);
             }
 
+            // Current prefix lookup fallback
+            const currentPrefix = config?.prefix || '!';
+
             // 2. Build the Dashboard Embed Card
             const dashboardEmbed = createEmbed()
                 .setColor('#2ECC71')
                 .setTitle('⚙️ Flow SMP | Management Dashboard')
                 .setDescription(
                     `### 🛡️ Active Moderation Access\n` +
-                    `The following roles are explicitly granted access to the \`/issue\` command suite:\n\n` +
                     `${permittedRolesList.join('\n')}\n\n` +
+                    `### ⚙️ Current Settings\n` +
+                    `> **Bot Name:** ${client.user.username}\n` +
+                    `> **Text Prefix:** \`${currentPrefix}\` (For legacy text commands)\n\n` +
                     `### 🚀 System Control\n` +
-                    `Click the button below to initiate a clean software restart. Railway will automatically bring the process back online immediately.`
+                    `Use the menu below to update settings, or click the button to trigger a software restart.`
                 )
                 .setFooter({ text: `Requested by ${interaction.user.username}` })
                 .setTimestamp();
 
-            // 3. Create the Restart Interactive Button
-            const row = new ActionRowBuilder().addComponents(
+            // 3. Create the Settings Drop-down Select Menu
+            const selectMenuRow = new ActionRowBuilder().addComponents(
+                new StringSelectMenuBuilder()
+                    .setCustomId('admin_dashboard_settings')
+                    .setPlaceholder('⚙️ Select a setting to update...')
+                    .addOptions([
+                        {
+                            label: 'Change Bot Name',
+                            description: 'Update the global username of this bot application.',
+                            value: 'edit_bot_name',
+                            emoji: '🤖'
+                        },
+                        {
+                            label: 'Change Text Prefix',
+                            description: 'Update the symbol used before message commands.',
+                            value: 'edit_prefix',
+                            emoji: '🔣'
+                        }
+                    ])
+            );
+
+            // 4. Create the Restart Button
+            const buttonRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('admin_restart_bot')
                     .setLabel('Restart Bot Processes')
@@ -69,7 +95,10 @@ export default {
                     .setEmoji('🔄')
             );
 
-            await interaction.editReply({ embeds: [dashboardEmbed], components: [row] });
+            await interaction.editReply({ 
+                embeds: [dashboardEmbed], 
+                components: [selectMenuRow, buttonRow] 
+            });
 
         } catch (error) {
             await handleInteractionError(error, interaction);
