@@ -1,60 +1,46 @@
-if (interaction.isModalSubmit()) {
-    if (interaction.customId === 'suggestion_modal') {
+import { SlashCommandBuilder } from 'discord.js';
+import { handleInteractionError } from '../../utils/errorHandler.js';
+
+export default {
+    data: new SlashCommandBuilder()
+        .setName('suggest')
+        .setDescription('Submit a suggestion for the server')
+        .setDMPermission(false), // Members must use it inside the server
+    category: "Utility",
+
+    async execute(interaction, config, client) {
         try {
-            // Instantly acknowledge the submission so the user doesn't see "Interaction Failed"
-            await interaction.deferReply({ ephemeral: true });
+            // We cannot import or build structural layout components inside the global header 
+            // if your setup relies strictly on raw discord.js sub-packages. 
+            // Let's build the modal safely right here inside the execution loop:
+            
+            const modal = {
+                title: 'Submit a Suggestion',
+                custom_id: 'suggestion_modal',
+                components: [
+                    {
+                        type: 1, // Action Row
+                        components: [
+                            {
+                                type: 4, // Text Input
+                                custom_id: 'suggestion_text',
+                                label: 'What is your suggestion?',
+                                style: 2, // Paragraph / Large text box
+                                placeholder: 'Type your suggestion for Flow SMP here...',
+                                min_length: 10,
+                                max_length: 1000,
+                                required: true
+                            }
+                        ]
+                    }
+                ]
+            };
 
-            // FIX: Use interaction.fields instead of interaction.options
-            const suggestionText = interaction.fields.getTextInputValue('suggestion_text');
-            const user = interaction.user;
-            const guild = interaction.guild;
-
-            // Target DM User ID
-            const targetUserId = '1008719737825534043';
-            const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
-
-            if (targetUser) {
-                try {
-                    // Try to use your custom project embed structure
-                    const { createEmbed } = await import('../../utils/embeds.js');
-                    const suggestionEmbed = createEmbed()
-                        .setColor('#2ECC71')
-                        .setTitle('📩 New Server Suggestion')
-                        .setDescription(`\`\`\`\n${suggestionText}\n\`\`\``)
-                        .addFields(
-                            { name: 'Submitted By', value: `${user} (${user.username})`, inline: true },
-                            { name: 'Server', value: `${guild.name}`, inline: true }
-                        )
-                        .setTimestamp();
-
-                    await targetUser.send({ embeds: [suggestionEmbed] }).catch(() => null);
-                } catch (embedError) {
-                    // Fallback: If your path to embeds.js fails, send a standard raw embed object so it doesn't crash
-                    await targetUser.send({
-                        embeds: [{
-                            color: 0x2ECC71,
-                            title: '📩 New Server Suggestion',
-                            description: `\`\`\`\n${suggestionText}\n\`\`\``,
-                            fields: [
-                                { name: 'Submitted By', value: `${user} (${user.username})`, inline: true },
-                                { name: 'Server', value: `${guild.name}`, inline: true }
-                            ],
-                            timestamp: new Date()
-                        }]
-                    }).catch(() => null);
-                }
-            }
-
-            // Confirm cleanly to the member that it went through
-            await interaction.editReply({
-                content: '✅ Thank you! Your suggestion has been successfully sent to the server administration team.'
-            });
+            // Show the pop-up form directly to the member instantly
+            await interaction.showModal(modal);
 
         } catch (error) {
-            console.error('Error handling modal submission:', error);
-            if (interaction.deferred) {
-                await interaction.editReply({ content: '❌ An error occurred while routing your suggestion.' }).catch(() => null);
-            }
+            await handleInteractionError(error, interaction);
         }
     }
-}
+};
