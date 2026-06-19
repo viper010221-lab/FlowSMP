@@ -105,14 +105,32 @@ export default {
                         const bannedModsEmbed = createEmbed({
                             title: '🛡️ Banned Modifications & Client Restrictions',
                             color: 'error',
-                            description: 'Any modifications that grant an unfair advantage over vanilla players are strictly prohibited.',
+                            description: 'Any modifications that grant an unfair advantage over vanilla players are strictly prohibited.\n\n⚖️ **Punishment = 4h-7h** (depends on what you used)',
                             fields: [
-                                { name: '🚫 Hacked Clients & Movement Modifiers', value: 'Includes any mods that allow flight, speed hacking, freecam, or fast break.' },
-                                { name: '👁️ X-Ray & Vision Enhancers', value: 'Mods that let you see through blocks, caves, or player names behind walls.' },
-                                { name: '🤖 Automation & Macros', value: 'Auto-clicking/burst-clicking buttons, auto-sprint, auto-eating, and automated fishing or farming macros.' },
-                                { name: '⚔️ PvP Assistance', value: 'Kill-aura, aim assist, reach extenders, auto-totem, and triggerbots.' },
-                                { name: '⚠️ Malware & IP Stealers', value: 'Mods containing malicious code or scripts that attempt to access your computer’s IP or system information.' },
-                                { name: '🗺️ Unapproved Aesthetic Features', value: 'Certain minimap mods that indicate the location of nearby players or entities.' }
+                                { 
+                                    name: '🚫 Hacked Clients & Movement Modifiers', 
+                                    value: 'Includes any mods that allow flight, speed hacking, freecam, or fast break.\n⚖️ **Punishment = 5 days ban**' 
+                                },
+                                { 
+                                    name: '👁️ X-Ray & Vision Enhancers', 
+                                    value: 'Mods that let you see through blocks, caves, or player names behind walls.\n⚖️ **Punishment = 4h-7h** (depends on what you used)' 
+                                },
+                                { 
+                                    name: '🤖 Automation & Macros', 
+                                    value: 'Auto-clicking/burst-clicking buttons, auto-sprint, auto-eating, and automated fishing or farming macros.\n⚖️ **Punishment = 7 hours ban**' 
+                                },
+                                { 
+                                    name: '⚔️ PvP Assistance', 
+                                    value: 'Kill-aura, aim assist, reach extenders, auto-totem, and triggerbots.\n⚖️ **Punishment = 1 day ban**' 
+                                },
+                                { 
+                                    name: '⚠️ Malware & IP Stealers', 
+                                    value: 'Mods containing malicious code or scripts that attempt to access your computer’s IP or system information.\n⚖️ **Punishment = PERMANENT**' 
+                                },
+                                { 
+                                    name: '🗺️ Unapproved Aesthetic Features', 
+                                    value: 'Certain minimap mods that indicate the location of nearby players or entities.\n⚖️ **Punishment = 6h ban**' 
+                                }
                             ],
                             footer: 'Use common sense if it feels unfair, or you will get banned for it.'
                         });
