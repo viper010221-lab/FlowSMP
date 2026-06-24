@@ -1,31 +1,34 @@
 import { Events } from "discord.js";
+import fs from 'fs';
+import path from 'path';
+
+const configPath = path.resolve('./automodConfig.json');
 
 export default {
   name: Events.MessageCreate,
   once: false,
 
   async execute(message) {
-    // Escape early for bots or empty messages
     if (message.author.bot || !message.content) return;
 
+    // Load active arrays directly from storage file
+    let config = { logChannelId: "1513984222346612805", muteDurationMinutes: 60, blockedWords: ["nigger", "kys", "killyourself", "bitch"] };
+    try {
+      config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    } catch { /* Fallback to default block if config disappears */ }
+
     const cleanContent = message.content.toLowerCase();
-    const logChannelId = '1513984222346612805';
 
-    // Hard block word strings to quickly identify which exact word was used
-    const blockedWords = ['nigger', 'kys', 'killyourself', 'bitch'];
-
-    // Find if the message contains any of the blocked words
-    const triggeredWord = blockedWords.find(word => cleanContent.includes(word));
+    // Scan users text for dynamically updated storage array entries
+    const triggeredWord = config.blockedWords.find(word => cleanContent.includes(word));
 
     if (triggeredWord) {
-      // 1. Delete the bad message out of chat instantly
       if (message.deletable) {
         await message.delete().catch(() => null);
       }
 
-      // 2. Automatically mute (timeout) the user for 1 hour
-      // 1 hour = 60 minutes * 60 seconds * 1000 milliseconds
-      const muteDuration = 60 * 60 * 1000; 
+      // Convert our dashboard duration metrics directly to timeout actions
+      const muteDuration = config.muteDurationMinutes * 60 * 1000; 
       let muteSuccess = true;
 
       if (message.member && message.member.moderatable) {
@@ -35,21 +38,19 @@ export default {
         muteSuccess = false;
       }
 
-      // 3. Log it right away to the specified moderation logs channel
-      const logChannel = message.client.channels.cache.get(logChannelId);
+      const logChannel = message.client.channels.cache.get(config.logChannelId);
       if (logChannel) {
         const muteStatusText = muteSuccess 
-          ? "and has been muted for 1 hour ⏳" 
-          : "(Failed to mute - check bot permissions/role hierarchy)";
+          ? `and has been muted for ${config.muteDurationMinutes}m ⏳` 
+          : "(Failed to mute - check hierarchy permissions)";
           
         await logChannel.send({
           content: `⚠️ **AutoMod Log:** ${message.author.tag} (${message.author.id}) sayed \`${triggeredWord}\` message deleted ${muteStatusText}`
         }).catch(() => null);
       }
 
-      // 4. Send a temporary warning to the user in the main chat channel
       const warning = await message.channel.send({
-        content: `❌ ${message.author}, That vocabulary or phrase is not permitted. You have been muted for 1 hour.`
+        content: `❌ ${message.author}, That vocabulary or phrase is not permitted. You have been muted.`
       }).catch(() => null);
 
       if (warning) {
