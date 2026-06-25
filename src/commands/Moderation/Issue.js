@@ -1,8 +1,4 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
-import fs from 'fs';
-import path from 'path';
-
-const configPath = path.resolve('./automodConfig.json');
 
 export default {
   data: new SlashCommandBuilder()
@@ -35,7 +31,7 @@ export default {
     ),
 
   async execute(interaction) {
-    // 🛡️ Safe defer setup to immediately clear the "Sending command..." loading state
+    // Immediate safe defer to keep things responsive
     await interaction.deferReply({ ephemeral: true }).catch(() => null);
 
     const issueType = interaction.options.getString("type");
@@ -53,16 +49,13 @@ export default {
       }).catch(() => null);
     }
 
-    let logChannelId = "1513984222346612805";
-    try {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      if (config.logChannelId) logChannelId = config.logChannelId;
-    } catch { /* Fallback */ }
-
-    const logChannel = interaction.guild.channels.cache.get(logChannelId);
+    // FIXED: Directly forced to your specific channel destination ID for maximum performance speed
+    const targetChannelId = "1513984222346612804";
+    const logChannel = interaction.guild.channels.cache.get(targetChannelId);
+    
     if (!logChannel) {
       return await interaction.editReply({
-        content: "❌ **Configuration Error:** Administration logging channel could not be resolved."
+        content: "❌ **Configuration Error:** The specified destination channel could not be found."
       }).catch(() => null);
     }
 
@@ -93,13 +86,14 @@ export default {
       issueEmbed.addFields({ name: "🎬 Video Proof", value: `[Click here to jump straight to file attachment](${proofAttachment.url})` });
     }
 
+    // Dispatches layout straight to your requested channel feed
     await logChannel.send({
       embeds: [issueEmbed],
       content: isVideo ? `🎬 **Attached Video Evidence:** ${proofAttachment.url}` : null
     }).catch(() => null);
 
     await interaction.editReply({
-      content: `✅ Success! Your **${issueType}** issue profile regarding ${targetUser.tag} has been logged with management details.`
+      content: `✅ Success! Your **${issueType}** issue profile regarding ${targetUser.tag} has been logged.`
     }).catch(() => null);
   }
 };
