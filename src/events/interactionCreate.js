@@ -1,486 +1,102 @@
-import { Events, MessageFlags } from 'discord.js';
-import { logger } from '../utils/logger.js';
-import { getGuildConfig } from '../services/guildConfig.js';
-import { handleApplicationModal } from '../commands/Community/apply.js';
-import { handleApplicationReviewModal } from '../commands/Community/app-admin.js';
-import { handleMediaModalSubmit } from '../commands/Moderation/media.js'; // 🎥 Media Form Submission Hook
-import { handleInteractionError, createError, ErrorTypes } from '../utils/errorHandler.js';
-import { MessageTemplates } from '../utils/messageTemplates.js';
-import { InteractionHelper } from '../utils/interactionHelper.js';
-import { createInteractionTraceContext, runWithTraceContext } from '../utils/traceContext.js';
-import { validateChatInputPayloadOrThrow } from '../utils/commandInputValidation.js';
-import { enforceAbuseProtection, formatCooldownDuration } from '../utils/abuseProtection.js';
-import { isCommandEnabled } from '../services/commandAccessService.js';
-import { resolveSlashAccessKey } from '../utils/messageAdapter.js';
-import { isCollectorManagedComponent } from '../utils/collectorComponents.js';
-import { ResponseCoordinator } from '../utils/responseCoordinator.js';
-function withTraceContext(context = {}, traceContext = {}) {
-  return {
-    traceId: traceContext.traceId,
-    guildId: context.guildId || traceContext.guildId,
-    userId: context.userId || traceContext.userId,
-    command: context.commandName || traceContext.command,
-    ...context
-  };
-}
-export default {
-  name: Events.InteractionCreate,
-  async execute(interaction, client) {
-    const interactionTraceContext = createInteractionTraceContext(interaction);
-    interaction.traceContext = interactionTraceContext;
-    interaction.traceId = interactionTraceContext.traceId;
-    return runWithTraceContext(interactionTraceContext, async () => {
-      try {
-        InteractionHelper.patchInteractionResponses(interaction);
-        ResponseCoordinator.attach(interaction);
-        // ─── 1. CHAT INPUT COMMAND HANDLER ───────────────────────────────────
-        if (interaction.isChatInputCommand()) {
-          try {
-            logger.info(`Command executed: /${interaction.commandName} by ${interaction.user.tag}`, {
-              event: 'interaction.command.received',
-              traceId: interactionTraceContext.traceId,
-              guildId: interaction.guildId,
-              userId: interaction.user?.id,
-              command: interaction.commandName
-            });
-            validateChatInputPayloadOrThrow(interaction, withTraceContext({
-              type: 'command_input_validation',
-              commandName: interaction.commandName
-            }, interactionTraceContext));
-            const command = client.commands.get(interaction.commandName);
-            if (!command) {
-              throw createError(
-                `No command matching ${interaction.commandName} was found.`,
-                ErrorTypes.CONFIGURATION,
-                'Sorry, that command does not exist.',
-                withTraceContext({ commandName: interaction.commandName }, interactionTraceContext)
-              );
+const { Events, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, EmbedBuilder } = require('discord.js');
+
+module.exports = {
+    name: Events.InteractionCreate,
+    async execute(interaction) {
+        if (interaction.isButton()) {
+            if (interaction.customId === 'media_apply_button') {
+                const modal = new ModalBuilder()
+                    .setCustomId('media_application_modal')
+                    .setTitle('Media Team Application');
+
+                const tiktokInput = new TextInputBuilder()
+                    .setCustomId('tiktok_profile')
+                    .setLabel('TikTok Profile Link')
+                    .setPlaceholder('https://www.tiktok.com/@yourusername')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                const videosInput = new TextInputBuilder()
+                    .setCustomId('video_links')
+                    .setLabel('Video Links (one per line)')
+                    .setPlaceholder('Paste your TikTok video links here')
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setRequired(true);
+
+                const firstActionRow = new ActionRowBuilder().addComponents(tiktokInput);
+                const secondActionRow = new ActionRowBuilder().addComponents(videosInput);
+
+                modal.addComponents(firstActionRow, secondActionRow);
+
+                await interaction.showModal(modal);
             }
-            const abuseProtection = await enforceAbuseProtection(interaction, command, interaction.commandName);
-            if (!abuseProtection.allowed) {
-              const formattedCooldown = formatCooldownDuration(abuseProtection.remainingMs);
-              throw createError(
-                `Risky command cooldown active for ${interaction.commandName}`,
-                ErrorTypes.RATE_LIMIT,
-                `This command is on cooldown. Please wait ${formattedCooldown} before trying again.`,
-                withTraceContext({
-                  commandName: interaction.commandName,
-                  subtype: 'command_cooldown',
-                  expected: true,
-                  cooldownMs: abuseProtection.remainingMs,
-                  cooldownWindowMs: abuseProtection.policy?.windowMs,
-                  cooldownMaxAttempts: abuseProtection.policy?.maxAttempts
-                }, interactionTraceContext)
-              );
-            }
-            let guildConfig = null;
-            if (interaction.guild) {
-              guildConfig = await getGuildConfig(client, interaction.guild.id, interactionTraceContext);
-              const accessKey = resolveSlashAccessKey(interaction);
-              if (!(await isCommandEnabled(client, interaction.guild.id, accessKey, command.category))) {
-                throw createError(
-                  `Command ${accessKey} is disabled in this guild`,
-                  ErrorTypes.CONFIGURATION,
-                  'This command has been disabled for this server.',
-                  withTraceContext({ commandName: accessKey, guildId: interaction.guild.id }, interactionTraceContext)
-                );
-              }
-            }
-            await command.execute(interaction, guildConfig, client);
-          } catch (error) {
-            await handleInteractionError(interaction, error, withTraceContext({
-              type: 'command',
-              commandName: interaction.commandName
-            }, interactionTraceContext));
-          }
-        } 
-        
-        // ─── 2. AUTOCOMPLETE HANDLER ─────────────────────────────────────────
-        else if (interaction.isAutocomplete()) {
-          const autocompleteCommand = client.commands.get(interaction.commandName);
-          if (autocompleteCommand?.autocomplete) {
-            try {
-              await autocompleteCommand.autocomplete(interaction, client);
-            } catch (error) {
-              logger.error('Error handling command autocomplete:', {
-                error: error.message,
-                guildId: interaction.guildId,
-                commandName: interaction.commandName,
-              });
-              await interaction.respond([]).catch(() => {});
-            }
-            return;
-          }
-          const focusedOption = interaction.options.getFocused(true);
-          
-          if (interaction.commandName === 'apply' && focusedOption.name === 'application') {
-            try {
-              const { getApplicationRoles } = await import('../utils/database.js');
-              const roles = await getApplicationRoles(client, interaction.guildId);
-              const roleName = interaction.options.getString('application', false);
-              const filtered = roles.filter(role =>
-                role.enabled !== false && 
-                role.name.toLowerCase().startsWith(roleName?.toLowerCase() || '')
-              );
-              
-              await interaction.respond(
-                filtered.slice(0, 25).map(role => ({
-                  name: `${role.name}${role.enabled === false ? ' (disabled)' : ''}`,
-                  value: role.name
-                }))
-              );
-            } catch (error) {
-              logger.error('Error handling autocomplete:', {
-                error: error.message,
-                guildId: interaction.guildId,
-                commandName: interaction.commandName
-              });
-              await interaction.respond([]);
-            }
-          } else if (interaction.commandName === 'app-admin' && focusedOption.name === 'application') {
-            try {
-              const { getApplicationRoles } = await import('../utils/database.js');
-              const roles = await getApplicationRoles(client, interaction.guildId);
-              const appName = interaction.options.getString('application', false);
-              const filtered = roles.filter(role =>
-                role.name.toLowerCase().startsWith(appName?.toLowerCase() || '')
-              );
-              
-              await interaction.respond(
-                filtered.slice(0, 25).map(role => ({
-                  name: `${role.name}${role.enabled === false ? ' (disabled)' : ''}`,
-                  value: role.name
-                }))
-              );
-            } catch (error) {
-              logger.error('Error handling app-admin autocomplete:', {
-                error: error.message,
-                guildId: interaction.guildId,
-                commandName: interaction.commandName
-              });
-              await interaction.respond([]);
-            }
-          } else if (interaction.commandName === 'reactroles' && focusedOption.name === 'panel') {
-            try {
-              const { getAllReactionRoleMessages, deleteReactionRoleMessage } = await import('../services/reactionRoleService.js');
-              const guildId = interaction.guildId;
-              const guild = interaction.guild;
-              
-              let panels = await getAllReactionRoleMessages(client, guildId);
-              
-              if (!panels || panels.length === 0) {
-                await interaction.respond([]);
-                return;
-              }
-              const validPanels = [];
-              for (const panel of panels) {
-                if (!panel.messageId || !panel.channelId) {
-                  continue;
+        }
+
+        if (interaction.isModalSubmit()) {
+            if (interaction.customId === 'media_application_modal') {
+                await interaction.deferReply({ ephemeral: true });
+
+                const tiktokLink = interaction.fields.getTextInputValue('tiktok_profile');
+                const videoLinks = interaction.fields.getTextInputValue('video_links');
+
+                // Basic validation
+                if (!tiktokLink.includes('tiktok.com')) {
+                    return interaction.editReply('❌ Please provide a valid TikTok profile link.');
                 }
+
+                // Send to staff channel
+                const staffChannel = interaction.guild.channels.cache.get('1519704772717056010');
                 
-                const channel = guild.channels.cache.get(panel.channelId);
-                if (!channel) {
-                  await deleteReactionRoleMessage(client, guildId, panel.messageId).catch(() => {});
-                  continue;
+                if (!staffChannel) {
+                    return interaction.editReply('❌ Staff channel not found.');
                 }
-                
-                const msg = await channel.messages.fetch(panel.messageId).catch(() => null);
-                if (!msg) {
-                  await deleteReactionRoleMessage(client, guildId, panel.messageId).catch(() => {});
-                  continue;
+
+                const embed = new EmbedBuilder()
+                    .setTitle('📋 New Media Team Application')
+                    .setColor('Green')
+                    .addFields(
+                        { name: 'Applicant', value: interaction.user.toString() },
+                        { name: 'TikTok Profile', value: tiktokLink },
+                        { name: 'Video Links', value: videoLinks.length > 1000 ? videoLinks.substring(0, 997) + '...' : videoLinks }
+                    )
+                    .setTimestamp();
+
+                const approve = new ButtonBuilder()
+                    .setCustomId(`approve_${interaction.user.id}`)
+                    .setLabel('Approve')
+                    .setStyle(ButtonStyle.Success);
+
+                const deny = new ButtonBuilder()
+                    .setCustomId(`deny_${interaction.user.id}`)
+                    .setLabel('Deny')
+                    .setStyle(ButtonStyle.Danger);
+
+                const row = new ActionRowBuilder().addComponents(approve, deny);
+
+                await staffChannel.send({ embeds: [embed], components: [row] });
+
+                await interaction.editReply('✅ Your application has been submitted for review!');
+            }
+        }
+
+        // Handle approve / deny buttons
+        if (interaction.isButton() && (interaction.customId.startsWith('approve_') || interaction.customId.startsWith('deny_'))) {
+            const userId = interaction.customId.split('_')[1];
+            const member = await interaction.guild.members.fetch(userId).catch(() => null);
+
+            if (interaction.customId.startsWith('approve_')) {
+                if (member) {
+                    const role = interaction.guild.roles.cache.get('1513984221574856722');
+                    if (role) await member.roles.add(role);
+                    await member.send('✅ Your Media Team application has been **approved**!').catch(() => {});
                 }
-                validPanels.push(panel);
-              }
-              
-              if (validPanels.length === 0) {
-                await interaction.respond([]);
-                return;
-              }
-              
-              const choices = await Promise.all(
-                validPanels.slice(0, 25).map(async panel => {
-                  try {
-                    const channel = guild.channels.cache.get(panel.channelId);
-                    if (!channel) return null;
-                    
-                    const msg = await channel.messages.fetch(panel.messageId).catch(() => null);
-                    if (!msg) return null;
-                    
-                    const title = msg?.embeds?.[0]?.title ?? 'Untitled Panel';
-                    const channelName = channel?.name ?? 'unknown';
-                    
-                    return {
-                      name: `${title} (${channelName})`.substring(0, 100),
-                      value: panel.messageId
-                    };
-                  } catch (e) {
-                    return null;
-                  }
-                })
-              );
-              
-              const validChoices = choices.filter(c => c !== null);
-              await interaction.respond(validChoices);
-            } catch (error) {
-              logger.error('Error handling reactroles autocomplete:', {
-                error: error.message,
-                guildId: interaction.guildId,
-                commandName: interaction.commandName
-              });
-              await interaction.respond([]);
-            }
-          }
-        } 
-        
-        // ─── 3. BUTTON HANDLER ───────────────────────────────────────────────
-        else if (interaction.isButton()) {
-          // 🎥 INTERCEPT: Media Requirements application panel button click
-          if (interaction.customId === 'check_media_reqs') {
-            try {
-              const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = await import('discord.js');
-              
-              const modal = new ModalBuilder()
-                .setCustomId('media_app_modal')
-                .setTitle('Media Rank Verification Form');
-              const profileInput = new TextInputBuilder()
-                .setCustomId('modal_tiktok_profile')
-                .setLabel('Your TikTok Profile Link')
-                .setPlaceholder('https://www.tiktok.com/@yourusername')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true);
-              const videoInput = new TextInputBuilder()
-                .setCustomId('modal_tiktok_video')
-                .setLabel('Your Video Link')
-                .setPlaceholder('https://www.tiktok.com/@username/video/...')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true);
-              const mcInput = new TextInputBuilder()
-                .setCustomId('modal_mc_name')
-                .setLabel('Your Minecraft Name (IGN)')
-                .setPlaceholder('Enter your exact in-game name')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true);
-              const discordInput = new TextInputBuilder()
-                .setCustomId('modal_discord_name')
-                .setLabel('Your Discord Name')
-                .setDefaultValue(interaction.user.username)
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true);
-              modal.addComponents(
-                new ActionRowBuilder().addComponents(profileInput),
-                new ActionRowBuilder().addComponents(videoInput),
-                new ActionRowBuilder().addComponents(mcInput),
-                new ActionRowBuilder().addComponents(discordInput)
-              );
-              
-              // Validate modal before showing
-              if (!modal || !modal.data) {
-                throw new Error('Modal construction failed - invalid modal data');
-              }
-              
-              await interaction.showModal(modal);
-              return; // Prevent execution layout fallthrough
-            } catch (error) {
-              logger.error('Error showing media modal:', {
-                event: 'media_button.modal_show_failed',
-                errorMessage: error.message,
-                errorCode: error.code,
-                traceId: interactionTraceContext.traceId,
-                userId: interaction.user?.id,
-                guildId: interaction.guildId
-              });
-              await interaction.reply({
-                content: '❌ **Error:** Could not open the application form. Please try again in a moment.',
-                flags: MessageFlags.Ephemeral
-              }).catch(() => null);
-              return;
-            }
-          }
-          if (interaction.customId.startsWith('shared_todo_')) {
-            const parts = interaction.customId.split('_');
-            const buttonType = parts.slice(0, 3).join('_');
-            const listId = parts[3];
-            const button = client.buttons.get(buttonType);
-            if (button) {
-              try {
-                await button.execute(interaction, client, [listId]);
-              } catch (error) {
-                await handleInteractionError(interaction, error, withTraceContext({
-                  type: 'button',
-                  customId: interaction.customId,
-                  handler: 'todo'
-                }, interactionTraceContext));
-              }
+                await interaction.reply({ content: '✅ Application Approved!', ephemeral: true });
             } else {
-              throw createError(
-                `No button handler found for ${buttonType}`,
-                ErrorTypes.CONFIGURATION,
-                'This button is not available.',
-                withTraceContext({ buttonType }, interactionTraceContext)
-              );
+                if (member) {
+                    await member.send('❌ Your Media Team application was **denied**.').catch(() => {});
+                }
+                await interaction.reply({ content: '❌ Application Denied.', ephemeral: true });
             }
-            return;
-          }
-          const [customId, ...args] = interaction.customId.split(':');
-          const button = client.buttons.get(customId);
-          if (!button) {
-            if (!interaction.customId.includes(':') || isCollectorManagedComponent(customId)) {
-              return;
-            }
-            throw createError(
-              `No button handler found for ${customId}`,
-              ErrorTypes.CONFIGURATION,
-              'This button is not available.',
-              withTraceContext({ customId }, interactionTraceContext)
-            );
-          }
-          try {
-            await button.execute(interaction, client, args);
-          } catch (error) {
-            await handleInteractionError(interaction, error, withTraceContext({
-              type: 'button',
-              customId: interaction.customId,
-              handler: 'general'
-            }, interactionTraceContext));
-          }
-        } 
-        
-        // ─── 4. SELECT MENU HANDLER ──────────────────────────────────────────
-        else if (interaction.isStringSelectMenu()) {
-          const [customId, ...args] = interaction.customId.split(':');
-          const selectMenu = client.selectMenus.get(customId);
-          if (!selectMenu) {
-            if (!interaction.customId.includes(':') || isCollectorManagedComponent(customId)) {
-              return;
-            }
-            throw createError(
-              `No select menu handler found for ${customId}`,
-              ErrorTypes.CONFIGURATION,
-              'This select menu is not available.',
-              withTraceContext({ customId }, interactionTraceContext)
-            );
-          }
-          try {
-            await selectMenu.execute(interaction, client, args);
-          } catch (error) {
-            await handleInteractionError(interaction, error, withTraceContext({
-              type: 'select_menu',
-              customId: interaction.customId
-            }, interactionTraceContext));
-          }
-        } 
-        
-        // ─── 5. MODAL SUBMIT HANDLER ─────────────────────────────────────────
-        else if (interaction.isModalSubmit()) {
-          // 🎥 INTERCEPT: Safe Execution Routing for Media App Form Submission
-          if (interaction.customId === 'media_app_modal') {
-            try {
-              await handleMediaModalSubmit(interaction, client);
-            } catch (error) {
-              logger.error('Error handling media modal submission:', {
-                event: 'media_modal.submission_failed',
-                errorMessage: error.message,
-                errorCode: error.code,
-                traceId: interactionTraceContext.traceId,
-                userId: interaction.user?.id,
-                guildId: interaction.guildId
-              });
-              await handleInteractionError(interaction, error, withTraceContext({
-                type: 'modal',
-                customId: interaction.customId,
-                handler: 'media_application'
-              }, interactionTraceContext));
-            }
-            return;
-          }
-          if (interaction.customId.startsWith('app_modal_')) {
-            try {
-              await handleApplicationModal(interaction);
-            } catch (error) {
-              await handleInteractionError(interaction, error, withTraceContext({
-                type: 'modal',
-                customId: interaction.customId,
-                handler: 'application'
-              }, interactionTraceContext));
-            }
-            return;
-          }
-          if (interaction.customId.startsWith('app_review_')) {
-            try {
-              await handleApplicationReviewModal(interaction);
-            } catch (error) {
-              await handleInteractionError(interaction, error, withTraceContext({
-                type: 'modal',
-                customId: interaction.customId,
-                handler: 'application_review'
-              }, interactionTraceContext));
-            }
-            return;
-          }
-          if (interaction.customId.startsWith('jtc_') || interaction.customId.startsWith('config_wizard_modal:')) {
-            logger.debug(`Skipping modal handler lookup for inline-awaited modal: ${interaction.customId}`, {
-              event: 'interaction.modal.inline_skipped',
-              traceId: interactionTraceContext.traceId
-            });
-            return;
-          }
-          const [customId, ...args] = interaction.customId.split(':');
-          const modal = client.modals.get(customId);
-          if (!modal) {
-            if (!interaction.customId.includes(':')) {
-              return;
-            }
-            throw createError(
-              `No modal handler found for ${customId}`,
-              ErrorTypes.CONFIGURATION,
-              'This form is not available.',
-              withTraceContext({ customId }, interactionTraceContext)
-            );
-          }
-          try {
-            await modal.execute(interaction, client, args);
-          } catch (error) {
-            await handleInteractionError(interaction, error, withTraceContext({
-              type: 'modal',
-              customId: interaction.customId,
-              handler: 'general'
-            }, interactionTraceContext));
-          }
         }
-      } catch (error) {
-        logger.error('Unhandled error in interactionCreate:', {
-          event: 'interaction.unhandled_error',
-          errorCode: 'INTERACTION_UNHANDLED_ERROR',
-          error,
-          traceId: interactionTraceContext.traceId,
-          interactionId: interaction.id,
-          guildId: interaction.guildId,
-          userId: interaction.user?.id
-        });
-        try {
-          const ephemeralErrorMessage = {
-            embeds: [MessageTemplates.ERRORS.DATABASE_ERROR('processing your interaction')],
-            flags: MessageFlags.Ephemeral
-          };
-          const editErrorMessage = {
-            embeds: [MessageTemplates.ERRORS.DATABASE_ERROR('processing your interaction')]
-          };
-          if (interaction.deferred) {
-            await interaction.editReply(editErrorMessage);
-          } else if (interaction.replied) {
-            await interaction.followUp(ephemeralErrorMessage);
-          } else {
-            await interaction.reply(ephemeralErrorMessage);
-          }
-        } catch (replyError) {
-          logger.error('Failed to send fallback error response:', {
-            event: 'interaction.error_response_failed',
-            errorCode: 'INTERACTION_ERROR_RESPONSE_FAILED',
-            error: replyError,
-            traceId: interactionTraceContext.traceId
-          });
-        }
-      }
-    });
-  }
+    }
 };
