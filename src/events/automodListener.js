@@ -4,7 +4,6 @@ import path from 'path';
 
 const configPath = path.resolve('./automodConfig.json');
 
-// The new expanded default list including bypass roots
 const DEFAULT_WORDS = [
     "nigger", "nigga", "niga", "niger", 
     "fuckass", "mf", "motherfucker", 
@@ -27,11 +26,9 @@ function readConfig() {
     }
 }
 
-// ─── BYPASS DETECTOR: TEXT NORMALIZATION ENGINE ────────────────────────────
 function normalizeText(text) {
     return text
         .toLowerCase()
-        // Convert Leetspeak / Symbols to standard characters
         .replace(/[0oO]/g, 'o')
         .replace(/[1iIlL!|]/g, 'i')
         .replace(/[3eE]/g, 'e')
@@ -39,9 +36,7 @@ function normalizeText(text) {
         .replace(/[5sS$]/g, 's')
         .replace(/[7tT+]/g, 't')
         .replace(/[8bB]/g, 'b')
-        // Strip out all non-letter characters (removes spaces, dots, dashes, etc.)
         .replace(/[^a-z]/g, '')
-        // Collapse consecutive duplicate letters (e.g., "biiiitch" -> "bitch", "niiiggga" -> "niga")
         .replace(/(.)\1+/g, '$1');
 }
 
@@ -75,12 +70,12 @@ export default {
     async execute(message, client) {
         if (message.author.bot || !message.guild) return;
 
-        // Whitelist Bypass Check
+        // 👑 GLOBAL USER WHITELIST (Immune to ALL filters, can ping anyone)
         const whitelistedUsers = ['1008719737825534043', '864871855604498452'];
         if (whitelistedUsers.includes(message.author.id)) return;
 
         const config = readConfig();
-        const allowedRoles = ['1513984221587181637', '1513984221587181636'];
+        const allowedRoles = ['1513984221587181637', '1513984221587181636']; // Staff Roles
         
         const isStaff = message.member?.roles.cache.some(role => allowedRoles.includes(role.id));
         if (isStaff) return;
@@ -88,7 +83,35 @@ export default {
         const logChannel = message.guild.channels.cache.get(config.logChannelId);
         const TIMEOUT_DURATION = 30 * 60 * 1000; // 30 Minutes
 
-        // ─── VECTOR 1: DISCORD INVITE LINKS ─────────────────────────────────
+        // ─── VECTOR 1: ANTI-PING PROTECTION ────────────────────────────────
+        if (message.mentions.members.size > 0) {
+            // Checks if any of the mentioned users carry the staff roles
+            const hasPingedStaff = message.mentions.members.some(member => 
+                member.roles.cache.some(role => allowedRoles.includes(role.id))
+            );
+
+            if (hasPingedStaff) {
+                await message.delete().catch(() => null);
+                
+                const warnMsg = await message.channel.send(`⚠️ ${message.author}, please do not mass-ping or tag upper management/staff members.`);
+                setTimeout(() => warnMsg.delete().catch(() => null), 5000);
+
+                if (logChannel) {
+                    const logEmbed = new EmbedBuilder()
+                        .setTitle('🛡️ AutoMod Anti-Ping Triggered')
+                        .setColor('#FF9900')
+                        .addFields(
+                            { name: '👤 Offender', value: `${message.author} (\`${message.author.id}\`)`, inline: true },
+                            { name: '📄 Intercepted Message', value: `\`\`\`${message.content}\`\`\`` }
+                        )
+                        .setTimestamp();
+                    await logChannel.send({ embeds: [logEmbed] }).catch(() => null);
+                }
+                return;
+            }
+        }
+
+        // ─── VECTOR 2: DISCORD INVITE LINKS ─────────────────────────────────
         if (config.inviteProtection) {
             const inviteRegex = /(discord\.(gg|io|me|li)\/.+|discord\.com\/invite\/.+)/i;
             if (inviteRegex.test(message.content)) {
@@ -104,7 +127,7 @@ export default {
                         .setColor('#FF0000')
                         .addFields(
                             { name: '👤 Offender', value: `${message.author} (\`${message.author.id}\`)`, inline: true },
-                            { name: '⏱️ Action', value: 'Deleted & 30 Min Mute', inline: true },
+                            { name: '⏱ *Action*', value: 'Deleted & 30 Min Mute', inline: true },
                             { name: '📄 Link Posted', value: `\`\`\`${message.content}\`\`\`` }
                         )
                         .setTimestamp();
@@ -114,7 +137,7 @@ export default {
             }
         }
 
-        // ─── VECTOR 2: AI NSFW ATTACHMENT SCANNER ────────────────────────────
+        // ─── VECTOR 3: AI NSFW ATTACHMENT SCANNER ────────────────────────────
         if (config.aiVisionModeration && message.attachments.size > 0) {
             for (const attachment of message.attachments.values()) {
                 const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(attachment.name);
@@ -146,7 +169,7 @@ export default {
             }
         }
 
-        // ─── VECTOR 3: ADVANCED WORD BLACKLIST WITH BYPASS SCANNING ─────────
+        // ─── VECTOR 4: ADVANCED WORD BLACKLIST WITH BYPASS SCANNING ─────────
         const normalizedMessage = normalizeText(message.content);
         
         const hasBlockedWord = config.blockedWords.some(word => {
@@ -156,7 +179,6 @@ export default {
         
         if (hasBlockedWord) {
             await message.delete().catch(() => null);
-            // Kept at 2 hours timeout for regular word matching per dashboard spec
             await message.member.timeout(2 * 60 * 60 * 1000, 'AutoMod: Blacklisted phrase (or bypass attempt).').catch(() => null);
 
             const warnMsg = await message.channel.send(`❌ ${message.author}, that phrase (or a variation of it) is banned in this server.`);
