@@ -9,6 +9,7 @@ export default {
         .setDescription('Issue a network or server moderation action')
         .setDMPermission(false)
         .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+        
         // --- BAN SUBCOMMAND ---
         .addSubcommand(subcommand =>
             subcommand
@@ -29,12 +30,18 @@ export default {
                         .setDescription('Reason for issuing this ban')
                         .setRequired(true)
                 )
+                .addAttachmentOption(option =>
+                    option.setName('proof')
+                        .setDescription('Upload mandatory proof (Photo or Video file)')
+                        .setRequired(true) // 🔒 Strictly Required
+                )
                 .addUserOption(option =>
                     option.setName('discord_user')
                         .setDescription('The linked Discord user account (optional)')
                         .setRequired(false)
                 )
         )
+        
         // --- TIMEOUT SUBCOMMAND ---
         .addSubcommand(subcommand =>
             subcommand
@@ -47,7 +54,7 @@ export default {
                 )
                 .addIntegerOption(option =>
                     option.setName('duration_minutes')
-                        .setDescription('How many minutes should the timeout last? (Will count down live)')
+                        .setDescription('How many minutes should the timeout last?')
                         .setRequired(true)
                 )
                 .addStringOption(option =>
@@ -55,12 +62,18 @@ export default {
                         .setDescription('Reason for issuing this timeout')
                         .setRequired(true)
                 )
+                .addAttachmentOption(option =>
+                    option.setName('proof')
+                        .setDescription('Upload mandatory proof (Photo or Video file)')
+                        .setRequired(true) // 🔒 Strictly Required
+                )
                 .addUserOption(option =>
                     option.setName('discord_user')
                         .setDescription('The linked Discord user account (optional)')
                         .setRequired(false)
                 )
         )
+        
         // --- WARN SUBCOMMAND ---
         .addSubcommand(subcommand =>
             subcommand
@@ -75,6 +88,11 @@ export default {
                     option.setName('reason')
                         .setDescription('Reason for issuing this warning')
                         .setRequired(true)
+                )
+                .addAttachmentOption(option =>
+                    option.setName('proof')
+                        .setDescription('Upload mandatory proof (Photo or Video file)')
+                        .setRequired(true) // 🔒 Strictly Required
                 )
         ),
     category: "Moderation",
@@ -92,8 +110,17 @@ export default {
             const logFeedChannelId = '1513984222346612805';
             const staffAlertChannelId = '1513984222346612806';
 
-            // Direct URL link bypasses upload arrays completely
-            const directImageUrl = 'https://images.wallpapersden.com/image/download/landscape-minecraft-shaders_bWltaGWZm35urWdnamVreW1lZmhpaWc.jpg';
+            // Fetch the mandatory proof attachment from options input slot
+            const proofAttachment = interaction.options.getAttachment('proof');
+            const contentType = proofAttachment.contentType || "";
+            const isImage = contentType.startsWith("image/");
+            const isVideo = contentType.startsWith("video/");
+
+            if (!isImage && !isVideo) {
+                return await interaction.editReply({
+                    content: "❌ **Invalid Proof Format:** Please upload a valid image file (PNG/JPG) or video asset file (MP4/MOV/WebM)."
+                });
+            }
 
             // --- PROCESS BAN SUBCOMMAND ---
             if (subcommand === 'ban') {
@@ -126,7 +153,6 @@ export default {
                     .setColor('#8B0000') // Dark Red
                     .setAuthor({ name: `Issued by ${moderator.username}`, iconURL: moderator.displayAvatarURL({ dynamic: true }) })
                     .setTitle('Moderation Log: Ban')
-                    .setImage(directImageUrl) // Load directly from the web URL string
                     .setFooter({ text: `Moderator ID: ${moderator.id}` })
                     .setTimestamp()
                     .addFields(
@@ -136,12 +162,21 @@ export default {
                         { name: 'Reason', value: `> ${reason}`, inline: true }
                     );
 
+                // Setup Media Routing Layouts
+                if (isImage) {
+                    logEmbed.setImage(proofAttachment.url);
+                } else if (isVideo) {
+                    logEmbed.addFields({ name: '🎬 Video Evidence', value: `[Click to view video](${proofAttachment.url})` });
+                }
+
                 await interaction.editReply({ embeds: [logEmbed] });
 
                 const logFeedChannel = client.channels.cache.get(logFeedChannelId);
                 if (logFeedChannel) {
                     await logFeedChannel.send({
-                        content: `🔨 ${targetMentionOrUsername} has been banned by ${moderator} **${reason}** **${durationInput}**`
+                        content: `🔨 ${targetMentionOrUsername} has been banned by ${moderator} **Reason:** ${reason} **Duration:** ${durationInput}` + 
+                                 (isVideo ? `\n🎬 **Evidence Player:** ${proofAttachment.url}` : ''),
+                        embeds: isImage ? [] : [logEmbed] // Send inline player alongside metadata logs if it is a video asset file
                     }).catch(() => null);
                 }
             }
@@ -159,10 +194,9 @@ export default {
                 const liveCountdownString = `<t:${expiryTimestamp}:R>`;
 
                 const logEmbed = createEmbed()
-                    .setColor('#8B0000') // Dark Red
+                    .setColor('#E74C3C') // Red
                     .setAuthor({ name: `Issued by ${moderator.username}`, iconURL: moderator.displayAvatarURL({ dynamic: true }) })
                     .setTitle('Moderation Log: Timeout')
-                    .setImage(directImageUrl) // Load directly from the web URL string
                     .setFooter({ text: `Moderator ID: ${moderator.id}` })
                     .setTimestamp()
                     .addFields(
@@ -172,12 +206,20 @@ export default {
                         { name: 'Reason', value: `> ${reason}`, inline: true }
                     );
 
+                if (isImage) {
+                    logEmbed.setImage(proofAttachment.url);
+                } else if (isVideo) {
+                    logEmbed.addFields({ name: '🎬 Video Evidence', value: `[Click to view video](${proofAttachment.url})` });
+                }
+
                 await interaction.editReply({ embeds: [logEmbed] });
 
                 const logFeedChannel = client.channels.cache.get(logFeedChannelId);
                 if (logFeedChannel) {
                     await logFeedChannel.send({
-                        content: `⏳ ${targetMentionOrUsername} has been muted by ${moderator} **${reason}** **${durationMinutes}m**`
+                        content: `⏳ ${targetMentionOrUsername} has been muted by ${moderator} **Reason:** ${reason} **Duration:** ${durationMinutes}m` + 
+                                 (isVideo ? `\n🎬 **Evidence Player:** ${proofAttachment.url}` : ''),
+                        embeds: isImage ? [] : [logEmbed]
                     }).catch(() => null);
                 }
 
@@ -240,19 +282,29 @@ export default {
                 }
 
                 const logEmbed = createEmbed()
-                    .setColor('#2ECC71')
+                    .setColor('#2ECC71') // Green
+                    .setTitle('Moderation Log: Warning')
                     .setDescription(
                         `**Warned** ${discordUser}\n\n` +
                         `**Reason:** ${reason}\n` +
                         `**Total Warns:** ${nextWarnLevel}`
-                    );
+                    )
+                    .setTimestamp();
+
+                if (isImage) {
+                    logEmbed.setImage(proofAttachment.url);
+                } else if (isVideo) {
+                    logEmbed.addFields({ name: '🎬 Video Evidence', value: `[Click to view video](${proofAttachment.url})` });
+                }
 
                 await interaction.editReply({ embeds: [logEmbed] });
 
                 const logFeedChannel = client.channels.cache.get(logFeedChannelId);
                 if (logFeedChannel) {
                     await logFeedChannel.send({
-                        content: `⚠️ ${discordUser} has been warned by ${moderator} **${reason}**`
+                        content: `⚠️ ${discordUser} has been warned by ${moderator} **Reason:** ${reason}` + 
+                                 (isVideo ? `\n🎬 **Evidence Player:** ${proofAttachment.url}` : ''),
+                        embeds: isImage ? [] : [logEmbed]
                     }).catch(() => null);
                 }
             }
