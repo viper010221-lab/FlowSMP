@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -8,7 +8,6 @@ export default {
   data: new SlashCommandBuilder()
     .setName("issue")
     .setDescription("Report a user infraction or server issue to management")
-    // 1. Bring back the core action types
     .addStringOption(option =>
       option.setName("type")
         .setDescription("Select the type of issue action")
@@ -29,7 +28,6 @@ export default {
         .setDescription("Reason or details regarding this issue")
         .setRequired(true)
     )
-    // 2. Proof is now strictly required and accepts photos/videos
     .addAttachmentOption(option =>
       option.setName("proof")
         .setDescription("Upload mandatory proof (Photo or Video file)")
@@ -37,15 +35,14 @@ export default {
     ),
 
   async execute(interaction) {
-    // Acknowledge interaction immediately 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
+    // 🛡️ Safe defer setup to immediately clear the "Sending command..." loading state
+    await interaction.deferReply({ ephemeral: true }).catch(() => null);
 
     const issueType = interaction.options.getString("type");
     const targetUser = interaction.options.getUser("user");
     const reason = interaction.options.getString("reason");
     const proofAttachment = interaction.options.getAttachment("proof");
 
-    // Validate that the uploaded file matches expected media categories
     const contentType = proofAttachment.contentType || "";
     const isImage = contentType.startsWith("image/");
     const isVideo = contentType.startsWith("video/");
@@ -56,7 +53,6 @@ export default {
       }).catch(() => null);
     }
 
-    // Pull your target tracking feed channel out of the server profile configurations
     let logChannelId = "1513984222346612805";
     try {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -70,19 +66,17 @@ export default {
       }).catch(() => null);
     }
 
-    // Set up display styling variables matching the selected issue path
     let actionLabel = "⚠️ Issue Report: Warning Request";
-    let embedColor = 0xFFAA00; // Orange for warns
+    let embedColor = 0xFFAA00; 
 
     if (issueType === "timeout") {
       actionLabel = "⏳ Issue Report: Timeout Request";
-      embedColor = 0x3498DB; // Blue for timeouts
+      embedColor = 0x3498DB; 
     } else if (issueType === "ban") {
       actionLabel = "🔨 Issue Report: Ban Request";
-      embedColor = 0xE74C3C; // Red for bans
+      embedColor = 0xE74C3C; 
     }
 
-    // Formulate final administration report layout
     const issueEmbed = new EmbedBuilder()
       .setTitle(actionLabel)
       .setColor(embedColor)
@@ -93,21 +87,17 @@ export default {
       )
       .setTimestamp();
 
-    // Map photo embed preview hooks if applicable
     if (isImage) {
       issueEmbed.setImage(proofAttachment.url);
     } else if (isVideo) {
       issueEmbed.addFields({ name: "🎬 Video Proof", value: `[Click here to jump straight to file attachment](${proofAttachment.url})` });
     }
 
-    // Forward package array structures directly over to server logs
     await logChannel.send({
       embeds: [issueEmbed],
-      // If it's a video file, append the raw asset link so Discord maps out the media play frame automatically!
       content: isVideo ? `🎬 **Attached Video Evidence:** ${proofAttachment.url}` : null
     }).catch(() => null);
 
-    // Provide clean feedback response
     await interaction.editReply({
       content: `✅ Success! Your **${issueType}** issue profile regarding ${targetUser.tag} has been logged with management details.`
     }).catch(() => null);
