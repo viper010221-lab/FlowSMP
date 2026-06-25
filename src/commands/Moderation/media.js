@@ -46,10 +46,20 @@ export async function handleMediaModalSubmit(interaction, client) {
   try {
     const deferSuccess = await InteractionHelper.safeDefer(interaction, { ephemeral: true });
     if (!deferSuccess) return;
-    const tiktokProfile = interaction.fields.getTextInputValue('modal_tiktok_profile');
-    const tiktokVideo = interaction.fields.getTextInputValue('modal_tiktok_video');
-    const mcName = interaction.fields.getTextInputValue('modal_mc_name');
-    const discordName = interaction.fields.getTextInputValue('modal_discord_name');
+    
+    // Add validation for form fields
+    let tiktokProfile, tiktokVideo, mcName, discordName;
+    try {
+      tiktokProfile = interaction.fields.getTextInputValue('modal_tiktok_profile');
+      tiktokVideo = interaction.fields.getTextInputValue('modal_tiktok_video');
+      mcName = interaction.fields.getTextInputValue('modal_mc_name');
+      discordName = interaction.fields.getTextInputValue('modal_discord_name');
+    } catch (fieldError) {
+      return await interaction.editReply({
+        content: '❌ **Form Error:** Could not read form fields. Please try submitting the form again.'
+      });
+    }
+    
     // Link structural check validations
     if (!tiktokProfile.includes('tiktok.com') || !tiktokVideo.includes('tiktok.com')) {
       return await interaction.editReply({
