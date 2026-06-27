@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 
-// 🔑 PASTE YOUR NEW SECURE OPENAI API KEY HERE
-const AI_API_KEY = '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'; 
+// 🧠 Safely grabs the key from your host dashboard without putting it on GitHub
+const AI_API_KEY = process.env.OPENAI_API_KEY; 
 
 export default {
     data: new SlashCommandBuilder()
@@ -17,7 +17,7 @@ export default {
     async execute(interaction) {
         const question = interaction.options.getString('question');
 
-        // Fallback responses ONLY used if your AI key breaks or runs out of credits
+        // Funny local fallback responses used if the AI key is missing or out of credits
         const fallbackResponses = [
             "buddy im not fucking gpt 🤫",
             "ts guy thinks i have 100 ram inside my ahh 😭",
@@ -31,9 +31,8 @@ export default {
         let finalAnswer = "";
         let isAiGenerated = false;
 
-        // Check if a custom key has been configured
-        if (AI_API_KEY && AI_API_KEY !== 'YOUR_OPENAI_API_KEY') {
-            // Defer immediately because AI requests take 1-2 seconds to process
+        // If your host successfully passes the environment variable
+        if (AI_API_KEY) {
             await interaction.deferReply();
 
             try {
@@ -59,22 +58,26 @@ export default {
                     })
                 });
 
+                if (!response.ok) {
+                    throw new Error(`OpenAI responded with status ${response.status}`);
+                }
+
                 const data = await response.json();
                 if (data.choices && data.choices[0]?.message?.content) {
                     finalAnswer = data.choices[0].message.content.trim();
                     isAiGenerated = true;
                 }
             } catch (error) {
-                console.error('8Ball AI System Error:', error);
-                // Fail-safe default
-                finalAnswer = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
+                console.error('8Ball AI System Error (Using Fallback System):', error);
             }
-        } else {
-            // No API key configured yet, defaults to the basic random rotation
+        }
+
+        // Emergency backup: If the AI failed or skipped, pick a random answer
+        if (!finalAnswer) {
             finalAnswer = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
         }
 
-        // Build the display response
+        // Build the display embed response
         const embed = new EmbedBuilder()
             .setTitle('🔮 The Custom 8-Ball')
             .setColor(isAiGenerated ? '#00FFCC' : '#4B0082') 
@@ -83,7 +86,7 @@ export default {
                 { name: '🎱 The Answer', value: `> **${finalAnswer}**`, inline: false }
             )
             .setFooter({ 
-                text: `Asked by ${interaction.user.username} • Powered by Flow Core Engine` 
+                text: `Asked by ${interaction.user.username} • Mode: ${isAiGenerated ? '🧠 AI Engine' : '🎲 Fail-Safe Shaker'}` 
             })
             .setTimestamp();
 
