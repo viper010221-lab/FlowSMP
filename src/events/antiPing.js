@@ -9,8 +9,7 @@ export default {
   once: false,
 
   async execute(message) {
-    // Immediate escape hatches for maximum speed
-    if (message.author.bot || !message.content) return;
+    if (message.author.bot || !message.content || !message.guild) return;
 
     // --- PROTECTED USERS LIST ---
     const protectedUsers = [
@@ -21,34 +20,31 @@ export default {
     // 👑 BYPASS CHECK: Whitelisted users can ping anyone unrestricted
     if (protectedUsers.includes(message.author.id)) return;
 
-    // Modified Check: Only triggers if the explicit mention syntax (<@ID> or <@!ID>) is inside the message body text
+    // Strict Regex Check: Only triggers if the text layer contains an explicit <@ID> tag
     const triggeredPing = protectedUsers.find(id => {
       const explicitPingRegex = new RegExp(`<@!?${id}>`);
       return explicitPingRegex.test(message.content);
     });
 
     if (triggeredPing) {
-      // 1. Fire the delete request immediately to block the notification
-      if (message.deletable) {
-        await message.delete().catch(() => null);
-      }
+      // 1. Immediately delete the message to clear the ping
+      await message.delete().catch(() => null);
 
-      // 2. Read the shared log target dynamically
+      // 2. Fetch log channel
       let logChannelId = "1513984222346612805"; 
       try {
         const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         if (config.logChannelId) logChannelId = config.logChannelId;
       } catch { /* Fallback */ }
 
-      // 3. Dispatch the incident details to the staff feed
-      const logChannel = message.client.channels.cache.get(logChannelId);
+      const logChannel = message.guild.channels.cache.get(logChannelId);
       if (logChannel) {
         await logChannel.send({
-          content: `🗑️ **Anti-Ping Log:** Deleted a message from ${message.author.tag} (${message.author.id}) for explicitly pinging a protected staff ID.`
+          content: `🗑️ **Anti-Ping Log:** Deleted a message from ${message.author.tag} (${message.author.id}) for explicitly typing a ping to a protected staff member.`
         }).catch(() => null);
       }
 
-      // 4. Send the self-cleaning warning message
+      // 3. Issue self-cleaning alert
       const warning = await message.channel.send({
         content: `❌ ${message.author}, You cannot ping this person.`
       }).catch(() => null);
