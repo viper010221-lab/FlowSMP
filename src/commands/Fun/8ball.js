@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
+// Change this line to match the exact name you used in your host dashboard
+const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY; 
 
 // ⏱️ Cooldown tracking storage
 const userCooldowns = new Map();
