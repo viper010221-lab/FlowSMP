@@ -26,12 +26,12 @@ export default {
             errorOccurred = true;
         } else {
             try {
-                // Using the strict header authentication method for maximum stability
-                const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
+                // 🚀 Swapped out the old deprecated version for the active gemini-3.5-flash endpoint
+                const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'x-goog-api-key': GEMINI_API_KEY.trim() // Trims accidental whitespace automatically
+                        'x-goog-api-key': GEMINI_API_KEY.trim()
                     },
                     body: JSON.stringify({
                         contents: [{
@@ -49,7 +49,6 @@ export default {
                     })
                 });
 
-                // 🔍 If Google says NO, extract the EXACT reason from their servers
                 if (!response.ok) {
                     let errorDetails = `Status Code ${response.status}`;
                     try {
@@ -72,7 +71,6 @@ export default {
                 }
             } catch (error) {
                 console.error('8Ball Gemini System Error:', error);
-                // Displays the real, unfiltered error reason right inside Discord
                 finalAnswer = `⚠️ **Google API Error:** ${error.message}`;
                 errorOccurred = true;
             }
