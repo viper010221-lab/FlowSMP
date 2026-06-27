@@ -2,6 +2,10 @@ import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
 
+// ⏱️ Tracks player cooldowns in the bot's memory
+const cooldowns = new Map();
+const COOLDOWN_TIME = 5000; // 5000 milliseconds = 5 seconds
+
 export default {
     data: new SlashCommandBuilder()
         .setName('8ball')
@@ -15,8 +19,28 @@ export default {
 
     async execute(interaction) {
         const question = interaction.options.getString('question');
+        const userId = interaction.user.id;
+        const now = Date.now();
 
+        // 🛑 COOLDOWN CHECKER (Triggers BEFORE calling Google to save your quota)
+        if (cooldowns.has(userId)) {
+            const expirationTime = cooldowns.get(userId) + COOLDOWN_TIME;
+            
+            if (now < expirationTime) {
+                const timeLeft = ((expirationTime - now) / 1000).toFixed(1);
+                return interaction.reply({ 
+                    content: `💀 **lil bro chill, stop spamming the 8-ball.** touch grass for **${timeLeft}s** before asking sum shi again gng.`, 
+                    ephemeral: true // Only the spammer sees this warning message
+                });
+            }
+        }
+
+        // Defer reply since the user cleared the cooldown guard
         await interaction.deferReply();
+
+        // Set the cooldown timestamp for the user
+        cooldowns.set(userId, now);
+        setTimeout(() => cooldowns.delete(userId), COOLDOWN_TIME);
 
         let finalAnswer = "";
         let errorOccurred = false;
@@ -33,11 +57,9 @@ export default {
                         'x-goog-api-key': GEMINI_API_KEY.trim()
                     },
                     body: JSON.stringify({
-                        // 1. The user content is now kept completely separate
                         contents: [{
                             parts: [{ text: question }]
                         }],
-                        // 2. Moving instructions to the official system parameter fixes the model choking
                         systemInstruction: {
                             parts: [{
                                 text: `You are a hilarious, highly sarcastic Magic 8-Ball bot for a competitive Minecraft server named Flow SMP. 
