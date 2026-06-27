@@ -14,8 +14,9 @@ attached_assets/
 # Configuration and cache files
 .config/
 .git.backup.*
+automodConfig.json
 
-# Diagnostic reports (https:
+# Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Runtime data
@@ -34,23 +35,23 @@ coverage
 # nyc test coverage
 .nyc_output
 
-# Grunt intermediate storage (https:
+# Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
 .grunt
 
-# Bower dependency directory (https:
+# Bower dependency directory (https://bower.io/)
 bower_components
 
 # node-waf configuration
 .lock-wscript
 
-# Compiled binary addons (https:
+# Compiled binary addons (https://nodejs.org/api/addons.html)
 build/Release
 
 # Dependency directories
 node_modules/
 jspm_packages/
 
-# Snowpack dependency directory (https:
+# Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 
 # TypeScript cache
@@ -87,7 +88,7 @@ web_modules/
 .env.production.local
 .env.local
 
-# parcel-bundler cache (https:
+# parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
 
@@ -102,7 +103,7 @@ dist
 # Gatsby files
 .cache/
 # Comment in the public line in if your project uses Gatsby and not Next.js
-# https:
+# https://nextjs.org/blog/next-9-4#root-directory-support
 # public
 
 # vuepress build output
