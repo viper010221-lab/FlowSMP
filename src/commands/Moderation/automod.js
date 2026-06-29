@@ -48,7 +48,7 @@ export default {
     async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
 
-        const allowedRoles = ['1513984221587181637', '1513984221587181636'];
+        const allowedRoles = ['', ''];
         const hasRole = interaction.member.roles.cache.some(role => allowedRoles.includes(role.id));
 
         if (!hasRole) {
