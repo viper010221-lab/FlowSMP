@@ -10,7 +10,7 @@ export default {
         .setDescription('Main command for managing the AutoMod system')
         .addSubcommand(subcommand =>
             subcommand
-                .setName('status') // This turns "status" into the subcommand (/automod status)
+                .setName('status')
                 .setDescription('Toggle the entire AutoMod system on or off')
                 .addStringOption(option =>
                     option.setName('toggle')
@@ -25,12 +25,11 @@ export default {
         // 🔒 STRICT USER ID CHECK
         if (interaction.user.id !== '1008719737825534043') {
             return interaction.reply({ 
-                content: '❌ Access Denied: Only the bot administrator can toggle this system.', 
+                content: '❌ Access Denied: Only the server administrator can toggle this system.', 
                 ephemeral: true 
             });
         }
 
-        // Check which subcommand was used
         const subcommand = interaction.options.getSubcommand();
 
         if (subcommand === 'status') {
@@ -53,7 +52,7 @@ export default {
                 };
             }
 
-            // Set the state based on selection
+            // Update master switch configuration status
             config.enabled = (toggleValue === 'on');
             fs.writeFileSync(configPath, JSON.stringify(config, null, 4));
 
