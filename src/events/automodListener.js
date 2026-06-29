@@ -4,11 +4,10 @@ import path from 'path';
 
 const configPath = path.resolve('./automodConfig.json');
 
+// Define your blocked words here in your local file
 const DEFAULT_WORDS = [
-    "nigger", "nigga", "niga", "niger", 
-    "fuckass", "mf", "motherfucker", 
-    "bitch", "bitches", "dumbfuck", 
-    "kys", "killyourself"
+    "badword1", 
+    "badword2"
 ];
 
 function readConfig() {
@@ -82,10 +81,19 @@ export default {
         const whitelistedUsers = ['1008719737825534043', '864871855604498452'];
         if (whitelistedUsers.includes(message.author.id)) return;
 
-        const allowedRoles = ['1513984221587181637', '1513984221587181636'];
+        // 🛡️ ROLES THAT BYPASS AUTOMOD
+        const allowedRoles = [
+            '1513984221587181632', // 1st Role
+            '1518682228496928778', // 2nd Role
+            '1513984221587181633', // 3rd Role
+            '1520171755065573456', // 4th Role
+            '1513984221587181634', // 5th Role
+            '1513984221587181636', // 6th Role
+            '1513984221587181637'  // 7th Role
+        ];
         
-        const isStaff = message.member?.roles.cache.some(role => allowedRoles.includes(role.id));
-        if (isStaff) return;
+        const hasBypassRole = message.member?.roles.cache.some(role => allowedRoles.includes(role.id));
+        if (hasBypassRole) return;
 
         const logChannel = message.guild.channels.cache.get(config.logChannelId);
         const TIMEOUT_DURATION = 30 * 60 * 1000; 
