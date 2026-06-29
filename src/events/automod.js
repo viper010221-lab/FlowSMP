@@ -1,13 +1,17 @@
+const EXEMPT_IDS = ['YOUR_USER_ID_HERE']; // Put your Discord ID here
+
 export async function processAutoMod(message) {
-    // 1. Efficiency: Ignore bots and short messages to save tokens
-    if (message.author.bot || message.content.length < 15) return; 
+    // 1. Bypass check: If the author is in the exempt list or is a bot, do nothing
+    if (message.author.bot || EXEMPT_IDS.includes(message.author.id)) return;
+
+    // 2. Adjusting the filter: Let's lower it to 5 characters so it catches "mf"
+    if (message.content.length < 5) return; 
 
     try {
         const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                // This pulls directly from your host environment
                 'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}` 
             },
             body: JSON.stringify({
@@ -15,11 +19,10 @@ export async function processAutoMod(message) {
                 messages: [
                     {
                         role: "system",
-                        content: `You are the cold, bored moderator of Flow SMP. You do not care about the users. Analyze the following message.
+                        content: `You are a cold, bored moderator of Flow SMP. You do not care about the users. Analyze the following message.
                         Return ONLY a JSON object: { "toxic": true/false, "roast": "a 1-sentence cold insult" }.
-                        - Do not block normal words like "recently".
                         - If it is toxic, mean, or spam, toxic: true. 
-                        - Be condescending.`
+                        - Be condescending and cold.`
                     },
                     { role: "user", content: message.content }
                 ],
