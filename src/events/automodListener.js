@@ -82,7 +82,9 @@ export default {
 
         const logChannel = message.guild.channels.cache.get(config.logChannelId);
         const TIMEOUT_DURATION = 30 * 60 * 1000; // 30 Minutes
-        const BOT_DELETE_TIMEOUT = 2 * 60 * 1000; // 2 Minutes
+        
+        // ⏰ CHANGED: Bot replies will now disappear after exactly 40 seconds
+        const BOT_DELETE_TIMEOUT = 40 * 1000; 
 
         // ─── VECTOR 1: DISCORD INVITE LINKS ─────────────────────────────────
         if (config.inviteProtection) {
@@ -113,7 +115,7 @@ export default {
         // ─── VECTOR 2: AI NSFW ATTACHMENT SCANNER ────────────────────────────
         if (config.aiVisionModeration && message.attachments.size > 0) {
             for (const attachment of message.attachments.values()) {
-                const isImage = /\ Rog.jpg|jpeg|png|webp|gif)$/i.test(attachment.name);
+                const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(attachment.name);
                 if (!isImage) continue;
 
                 const isExplicit = await scanImageForNSFW(attachment.url);
@@ -173,7 +175,7 @@ export default {
             return; 
         }
 
-        // ─── VECTOR 4: INTELLIGENT AI JUDGE (Strictly For Bypasses Only) ─────
+        // ─── VECTOR 4: INTELLIGENT AI JUDGE (Extremely Safe & Lenient) ───────
         if (message.content.length >= 12) {
             try {
                 const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
@@ -187,19 +189,19 @@ export default {
                         messages: [
                             {
                                 role: "system",
-                                content: `You are a strict, literal-minded assistant for a Minecraft server. Your ONLY job is to detect severe slurs, extreme hate speech, or clever bypass attempts of swear words.
+                                content: `You are a literal, zero-imagination assistant for a Minecraft server. Your ONLY task is to look for blatant, heavy profanity or slurs bypassing standard filters.
 
-                                🛑 AIRTIGHT RULES TO AVOID FALSE POSITIVES:
-                                1. If a message is a normal question, regular argument, server conversation, or everyday statement, it is 100% SAFE. You must mark it toxic: false.
-                                2. Examples of completely SAFE text: "why are you admitting?", "screenshare please", "ss", "you are bad at this game", "why did you do that".
-                                3. Do NOT look for generic "attitude" or "sarcasm". Only flag clear, explicit profanity or bypassing of slurs. If no extreme bad words are hidden, toxic is false.
-                                4. Never repeat bad words in the roast.
+                                🛑 CRITICAL WHITELIST RULES:
+                                1. Any discussion about game rules, moderation, banning, hack reports, or cheaters is 100% SAFE. 
+                                2. NEVER flag words like "banned", "ip", "ip banned", "cheater", "hacker", "exploit", "client". These are completely allowed.
+                                3. If a message is a normal sentence, chat warning, question, or standard conversation, you MUST mark it toxic: false.
+                                4. Only trigger true if they are explicitly using extreme forbidden curse words.
 
                                 Return ONLY a raw JSON object: { "toxic": true/false, "roast": "your 1-sentence sarcastic roast" }.`
                             },
                             { role: "user", content: message.content }
                         ],
-                        temperature: 0.1 // 🔒 Set to minimum value to stop the AI from overthinking or guessing
+                        temperature: 0.1
                     })
                 });
 
@@ -217,6 +219,7 @@ export default {
                         await message.delete().catch(() => null);
                         
                         const aiWarnMsg = await message.channel.send(`🤡 **${message.author.username} failed the vibe check.** ${result.roast} 📉`);
+                        // ⏰ Wipes the bot's AI message after 40 seconds
                         setTimeout(() => aiWarnMsg.delete().catch(() => null), BOT_DELETE_TIMEOUT);
                         
                         if (logChannel) {
