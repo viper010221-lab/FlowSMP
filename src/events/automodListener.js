@@ -153,7 +153,8 @@ export default {
             await message.delete().catch(() => null);
             await message.member.timeout(2 * 60 * 60 * 1000, 'AutoMod: Blacklisted phrase (or bypass attempt).').catch(() => null);
 
-            const warnMsg = await message.channel.send(`❌ ${message.author}, that phrase (or a variation of it) is banned in this server.`);
+            // ✨ UPGRADED: Replaced the generic warning message with a high-tier sarcastic remark
+            const warnMsg = await message.channel.send(`🤡 **${message.author.username} failed the vibe check.** What a lyrical genius. Too bad that word—and whatever weak attempt you made to bypass the filter—is completely banned here. Enjoy the 2-hour nap. 📉`);
             setTimeout(() => warnMsg.delete().catch(() => null), 5000);
 
             if (logChannel) {
@@ -172,7 +173,7 @@ export default {
             return; 
         }
 
-        // ─── VECTOR 4: INTELLIGENT AI JUDGE (With Maximum Sarcasm) ───────────
+        // ─── VECTOR 4: INTELLIGENT AI JUDGE ──────────────────────────────────
         if (message.content.length >= 12) {
             try {
                 const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
@@ -190,11 +191,11 @@ export default {
                                 Return ONLY a raw JSON object: { "toxic": true/false, "roast": "your 1-sentence sarcastic roast" }.
                                 - Regular chat text or simple complaints are safe (toxic: false).
                                 - Hidden toxicity, slurs, or actual malice (toxic: true).
-                                - The roast MUST be masterfully sarcastic, mockingly polite, or filled with dry irony (Examples: "Oh wow, groundbreaking insult. Did your last two remaining brain cells overheat typing that?", "Stunning performance, truly. I’m sure everyone is deeply intimidated by your keyboard keyboard warrior skills.").`
+                                - The roast MUST be masterfully sarcastic, mockingly polite, or filled with dry irony (Examples: "Oh wow, groundbreaking insult. Did your last two remaining brain cells overheat typing that?", "Stunning performance, truly. I’m sure everyone is deeply intimidated by your keyboard warrior skills.").`
                             },
                             { role: "user", content: message.content }
                         ],
-                        temperature: 0.65 // Slightly increased temperature allows the AI to get more creative/witty with insults
+                        temperature: 0.65
                     })
                 });
 
