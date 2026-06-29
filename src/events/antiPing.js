@@ -17,8 +17,20 @@ export default {
       "1008719737825534043"
     ];
 
-    // 👑 BYPASS CHECK: Whitelisted users can ping anyone unrestricted
+    // 👑 USER BYPASS CHECK: Whitelisted users can ping anyone unrestricted
     if (protectedUsers.includes(message.author.id)) return;
+
+    // 🛡️ ROLE BYPASS CHECK: Members with these 5 roles can ping staff unrestricted
+    const allowedAntiPingRoles = [
+      '1513984221587181633', // 1st Role
+      '1520171755065573456', // 2nd Role
+      '1513984221587181634', // 3rd Role
+      '1513984221587181636', // 4th Role
+      '1513984221587181637'  // 5th Role
+    ];
+
+    const hasBypassRole = message.member?.roles.cache.some(role => allowedAntiPingRoles.includes(role.id));
+    if (hasBypassRole) return; // 🏃‍♂️ If they have any of these roles, stop checking and let the ping go through!
 
     // Strict Regex Check: Only triggers if the text layer contains an explicit <@ID> tag
     const triggeredPing = protectedUsers.find(id => {
