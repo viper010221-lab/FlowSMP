@@ -8,7 +8,7 @@ export default {
 
     async execute(interaction) {
         // --- CONFIGURATION ---
-        const serverAddress = '185.206.148.153:25631'; 
+        const serverAddress = '176.9.113.40:25405'; 
         // ---------------------
 
         await interaction.deferReply();
